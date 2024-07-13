@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+
+about() {
+      cat <<EOF
+Consul Managment CLI
+  author: joe-at-startupmedia
+
+  Available options:
+    -d: enable debugging
+    -h: print this help page
+    -g: generate the CA files
+    -r: generate server certificate requests
+    -s: sign the server certificate requests
+    -v: validate the server certificate requests
+
+
+  Examples:
+
+    ./cmc -dg ssh-staging-cmd startup-consul-1
+EOF
+
+}
+
+set -e
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+DIR_TLS="${DIR}/tls"
+
+DC="nyc3"
+SERVERS_COUNT=3
+
+gen_ca() {
+  exec_hop_cmd="${1}"
+  target="${2}"
+  ${exec_hop_cmd} ${target} "rm ~/consul-agent-ca*.pem"
+  ${exec_hop_cmd} ${target} "consul tls ca create"
+  ${exec_hop_cmd} ${target} "cat ~/consul-agent-ca.pem" > "${DIR_TLS}/consul-agent-ca.pem"
+  ${exec_hop_cmd} ${target} "cat ~/consul-agent-ca-key.pem" > "${DIR_TLS}/consul-agent-ca-key.pem"
+  chmod 0600 "${DIR_TLS}/consul-agent-ca-key.pem"
+  ls ${DIR_TLS}/consul-agent-ca*.pem
+}
+
+gen_server_requests() {
+  for i in $(seq 1 $SERVERS_COUNT); do
+    WORK_DIR="${DIR_TLS}/server${i}"
+    mkdir -p "${WORK_DIR}"
+    openssl req -new -newkey rsa:2048 \
+      -nodes -keyout "${WORK_DIR}/server${i}.${DC}.consul.key" \
+      -out "${WORK_DIR}/server${i}.${DC}.consul.csr" \
+      -subj "/CN=server.${DC}.consul"
+  done
+}
+
+sign_server_requests() {
+  for i in $(seq 1 $SERVERS_COUNT); do
+    WORK_DIR="${DIR_TLS}/server${i}"
+    openssl x509 -req -in "${WORK_DIR}/server${i}.${DC}.consul.csr" \
+      -CA "${DIR_TLS}/consul-agent-ca.pem" \
+      -CAkey "${DIR_TLS}/consul-agent-ca-key.pem" \
+      -CAcreateserial \
+      -days 365 \
+      -out "${WORK_DIR}/server${i}.${DC}.consul.crt"
+  done
+}
+
+validate_signed() {
+  for i in $(seq 1 $SERVERS_COUNT); do
+    WORK_DIR="${DIR_TLS}/server${i}"
+    openssl x509 -text -noout -in "${WORK_DIR}/server${i}.${DC}.consul.crt"
+  done
+}
+
+while getopts ":hdrsg:v" opt; do
+  case $opt in
+    d)
+      set -x
+      ;;
+    r)
+      gen_server_requests
+      tree ${DIR_TLS}
+		  ;;
+    s)
+      sign_server_requests
+      tree ${DIR_TLS}
+      ;;
+    g)
+      last="${@: -1}"
+      gen_ca "${OPTARG}" "${last}"
+      ;;
+    v)
+      validate_signed | less
+      ;;
+    h)
+      about
+      ;;
+    ?)
+      echo "Invalid option: -$OPTARG" >&2
+      about
+      ;;
+  esac
+done
