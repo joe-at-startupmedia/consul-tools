@@ -9,14 +9,19 @@ Consul Managment CLI
     -d: enable debugging
     -h: print this help page
     -g: generate the CA files
-    -r: generate server certificate requests
-    -s: sign the server certificate requests
-    -v: validate the server certificate requests
-
+    -c: specify client mode
+    -r: generate certificate requests
+    -s: sign the certificate requests
+    -v: validate the certificate requests
+    -A: generate sign and validate certs
 
   Examples:
 
+    # generate the CA certs
     ./cmc -dg ssh-staging-cmd startup-consul-1
+
+    # generate sign and validate the client certs
+    ./cmc -cA
 EOF
 
 }
@@ -28,6 +33,7 @@ DIR_TLS="${DIR}/tls"
 
 DC="nyc3"
 SERVERS_COUNT=3
+TTL=365
 
 gen_ca() {
   exec_hop_cmd="${1}"
@@ -58,37 +64,95 @@ sign_server_requests() {
       -CA "${DIR_TLS}/consul-agent-ca.pem" \
       -CAkey "${DIR_TLS}/consul-agent-ca-key.pem" \
       -CAcreateserial \
-      -days 365 \
+      -days ${TTL} \
       -out "${WORK_DIR}/server${i}.${DC}.consul.crt"
   done
 }
 
-validate_signed() {
+validate_server_signed() {
   for i in $(seq 1 $SERVERS_COUNT); do
     WORK_DIR="${DIR_TLS}/server${i}"
     openssl x509 -text -noout -in "${WORK_DIR}/server${i}.${DC}.consul.crt"
   done
 }
 
-while getopts ":hdrsg:v" opt; do
+gen_client_request() {
+  WORK_DIR="${DIR_TLS}/client"
+  mkdir -p "${WORK_DIR}"
+  openssl req -new -newkey rsa:2048 \
+    -nodes -keyout "${WORK_DIR}/client.${DC}.consul.key" \
+    -out "${WORK_DIR}/client.${DC}.consul.csr" \
+    -subj "/CN=client.${DC}.consul"
+}
+
+sign_client_request() {
+  WORK_DIR="${DIR_TLS}/client"
+  openssl x509 -req -in "${WORK_DIR}/client.${DC}.consul.csr" \
+    -CA "${DIR_TLS}/consul-agent-ca.pem" \
+    -CAkey "${DIR_TLS}/consul-agent-ca-key.pem" \
+    -days ${TTL} \
+    -out "${WORK_DIR}/client.${DC}.consul.crt"
+
+}
+
+validate_client_signed() {
+  WORK_DIR="${DIR_TLS}/client"
+  openssl x509 -text -noout -in "${WORK_DIR}/client.${DC}.consul.crt"
+}
+
+IS_CLIENT=false
+
+gen_requests() {
+  if [ "$IS_CLIENT" = true ]; then
+    gen_client_request
+  else
+    gen_server_requests
+  fi
+  tree ${DIR_TLS}
+}
+
+sign_requests() {
+  if [ "$IS_CLIENT" = true ]; then
+    sign_client_request
+  else
+    sign_server_requests
+  fi
+  tree ${DIR_TLS}
+}
+
+validate_signed() {
+  if [ "$IS_CLIENT" = true ]; then
+    validate_client_signed
+  else
+    validate_server_signed 
+  fi
+}
+
+while getopts ":hdg:crsvA" opt; do
   case $opt in
     d)
       set -x
-      ;;
-    r)
-      gen_server_requests
-      tree ${DIR_TLS}
-		  ;;
-    s)
-      sign_server_requests
-      tree ${DIR_TLS}
       ;;
     g)
       last="${@: -1}"
       gen_ca "${OPTARG}" "${last}"
       ;;
+    c)
+      IS_CLIENT=true
+      ;;
+    r)
+      gen_requests
+		  ;;
+    s)
+      sign_requests
+      ;;
     v)
       validate_signed | less
+      ;;
+    A)
+      gen_requests && \
+        sign_requests && \
+        validate_signed | less
       ;;
     h)
       about
