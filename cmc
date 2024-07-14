@@ -31,9 +31,14 @@ set -e
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 DIR_TLS="${DIR}/tls"
 
-DC="nyc3"
-SERVERS_COUNT=3
-TTL=365
+#attempt to include the .env file if it exists
+FILE="${DIR}/.env" && test -f $FILE && source $FILE
+
+DC="${DC:-dc1}"
+SERVERS_COUNT=${SERVERS_COUNT:-1}
+TTL=${TTL:-28}
+SUBDOMAIN="${SUBDOMAIN:-server}"
+DOMAIN=${DOMAIN:-node.consul}
 
 gen_ca() {
   exec_hop_cmd="${1}"
@@ -46,11 +51,30 @@ gen_ca() {
   ls ${DIR_TLS}/consul-agent-ca*.pem
 }
 
+tls_config_server() {
+  server_index="${1}"
+cat <<-EOF
+[req]
+req_extensions = v3_req
+distinguished_name = dn
+[dn]
+CN = *.$DC.consul
+[v3_req]
+keyUsage = digitalSignature, keyEncipherment
+basicConstraints=CA:FALSE
+subjectAltName = @alt_names
+[ alt_names ]
+DNS.1 = $SUBDOMAIN-$server_index.$DOMAIN
+DNS.2 = localhost
+IP.1  = 127.0.0.1
+EOF
+}
+
 gen_server_requests() {
   for i in $(seq 1 $SERVERS_COUNT); do
     WORK_DIR="${DIR_TLS}/server${i}"
     mkdir -p "${WORK_DIR}"
-    openssl req -new -newkey rsa:2048 \
+    openssl req -new -newkey rsa:2048 -verbose \
       -nodes -keyout "${WORK_DIR}/server${i}.${DC}.consul.key" \
       -out "${WORK_DIR}/server${i}.${DC}.consul.csr" \
       -subj "/CN=server.${DC}.consul"
@@ -60,12 +84,15 @@ gen_server_requests() {
 sign_server_requests() {
   for i in $(seq 1 $SERVERS_COUNT); do
     WORK_DIR="${DIR_TLS}/server${i}"
+    tls_config_server "${i}" > "/tmp/server${i}.${DC}.consul.conf"
     openssl x509 -req -in "${WORK_DIR}/server${i}.${DC}.consul.csr" \
       -CA "${DIR_TLS}/consul-agent-ca.pem" \
       -CAkey "${DIR_TLS}/consul-agent-ca-key.pem" \
       -CAcreateserial \
       -days ${TTL} \
-      -out "${WORK_DIR}/server${i}.${DC}.consul.crt"
+      -out "${WORK_DIR}/server${i}.${DC}.consul.crt" \
+      -extfile /tmp/server${i}.${DC}.consul.conf \
+      -extensions v3_req
   done
 }
 
