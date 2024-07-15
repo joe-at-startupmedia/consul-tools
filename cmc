@@ -13,6 +13,7 @@ Consul Managment CLI
     -r: generate certificate requests
     -s: sign the certificate requests
     -v: validate the certificate requests
+    -p: deploy certs
     -A: generate sign and validate certs
 
   Examples:
@@ -22,6 +23,12 @@ Consul Managment CLI
 
     # generate sign and validate the client certs
     ./cmc -cA
+
+    # deploy certs to servers
+    ./cmc -p
+
+    # deploy client cert to a node
+    ./cm -cp client-node-name
 EOF
 
 }
@@ -103,6 +110,15 @@ validate_server_signed() {
   done
 }
 
+deploy_server_certs() {
+  BASTION_HOST="${1}"
+  for i in $(seq 1 $SERVERS_COUNT); do
+    WORK_DIR="${DIR_TLS}/server${i}"
+    scp -r -o "ProxyCommand ssh ${BASTION_HOST} -W %h:%p" ${WORK_DIR}/*.{crt,key} root@$SUBDOMAIN-$i.node.consul:/etc/consul.d/
+    scp -r -o "ProxyCommand ssh ${BASTION_HOST} -W %h:%p" ${DIR_TLS}/consul-agent-ca.pem root@$SUBDOMAIN-$i.node.consul:/etc/consul.d/
+  done
+}
+
 gen_client_request() {
   WORK_DIR="${DIR_TLS}/client"
   mkdir -p "${WORK_DIR}"
@@ -119,12 +135,19 @@ sign_client_request() {
     -CAkey "${DIR_TLS}/consul-agent-ca-key.pem" \
     -days ${TTL} \
     -out "${WORK_DIR}/client.${DC}.consul.crt"
-
 }
 
 validate_client_signed() {
   WORK_DIR="${DIR_TLS}/client"
   openssl x509 -text -noout -in "${WORK_DIR}/client.${DC}.consul.crt"
+}
+
+deploy_client_certs() {
+  BASTION_HOST="${1}"
+  CLIENT_NODE="${2}"
+  WORK_DIR="${DIR_TLS}/client"
+  scp -r -o "ProxyCommand ssh ${BASTION_HOST} -W %h:%p" ${WORK_DIR}/*.{crt,key} root@$CLIENT_NODE.node.consul:/etc/consul.d/
+  scp -r -o "ProxyCommand ssh ${BASTION_HOST} -W %h:%p" ${DIR_TLS}/consul-agent-ca.pem root@$CLIENT_NODE.node.consul:/etc/consul.d/
 }
 
 IS_CLIENT=false
@@ -155,7 +178,24 @@ validate_signed() {
   fi
 }
 
-while getopts ":hdg:crsvA" opt; do
+deploy_certs() {
+  if [ "$IS_CLIENT" = true ]; then
+    if [ ! -z "${CLIENT_NODES}" ]; then
+      read -a arr <<< "${CLIENT_NODES}"
+      for node_name in "${arr[@]}"
+      do
+        deploy_client_certs "${BASTION_HOST}" "${node_name}"
+      done
+    else 
+      CLIENT_NODE="${1}"
+      deploy_client_certs "${BASTION_HOST}" "${CLIENT_NODE}"
+    fi
+  else
+    deploy_server_certs "${BASTION_HOST}"
+  fi
+}
+
+while getopts ":hdg:crsvpA" opt; do
   case $opt in
     d)
       set -x
@@ -176,10 +216,14 @@ while getopts ":hdg:crsvA" opt; do
     v)
       validate_signed | less
       ;;
+    p)
+      last="${@: -1}"
+      deploy_certs "${last}"
+      ;;
     A)
       gen_requests && \
         sign_requests && \
-        validate_signed | less
+        deploy_certs
       ;;
     h)
       about
