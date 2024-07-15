@@ -14,6 +14,7 @@ Consul Managment CLI
     -s: sign the certificate requests
     -v: validate the certificate requests
     -p: deploy certs
+    -R: rolling reload on servers
     -A: generate sign and validate certs
 
   Examples:
@@ -71,8 +72,9 @@ keyUsage = digitalSignature, keyEncipherment
 basicConstraints=CA:FALSE
 subjectAltName = @alt_names
 [ alt_names ]
-DNS.1 = $SUBDOMAIN-$server_index.$DOMAIN
-DNS.2 = localhost
+DNS.1 = server.$DC.consul
+DNS.2 = $SUBDOMAIN-$server_index.$DOMAIN
+DNS.3 = localhost
 IP.1  = 127.0.0.1
 EOF
 }
@@ -82,8 +84,8 @@ gen_server_requests() {
     WORK_DIR="${DIR_TLS}/server${i}"
     mkdir -p "${WORK_DIR}"
     openssl req -new -newkey rsa:2048 -verbose \
-      -nodes -keyout "${WORK_DIR}/server${i}.${DC}.consul.key" \
-      -out "${WORK_DIR}/server${i}.${DC}.consul.csr" \
+      -nodes -keyout "${WORK_DIR}/server.${DC}.consul.key" \
+      -out "${WORK_DIR}/server.${DC}.consul.csr" \
       -subj "/CN=server.${DC}.consul"
   done
 }
@@ -91,14 +93,14 @@ gen_server_requests() {
 sign_server_requests() {
   for i in $(seq 1 $SERVERS_COUNT); do
     WORK_DIR="${DIR_TLS}/server${i}"
-    tls_config_server "${i}" > "/tmp/server${i}.${DC}.consul.conf"
-    openssl x509 -req -in "${WORK_DIR}/server${i}.${DC}.consul.csr" \
+    tls_config_server "${i}" > "${WORK_DIR}/server.${DC}.consul.conf"
+    openssl x509 -req -in "${WORK_DIR}/server.${DC}.consul.csr" \
       -CA "${DIR_TLS}/consul-agent-ca.pem" \
       -CAkey "${DIR_TLS}/consul-agent-ca-key.pem" \
       -CAcreateserial \
       -days ${TTL} \
-      -out "${WORK_DIR}/server${i}.${DC}.consul.crt" \
-      -extfile /tmp/server${i}.${DC}.consul.conf \
+      -out "${WORK_DIR}/server.${DC}.consul.crt" \
+      -extfile "${WORK_DIR}/server.${DC}.consul.conf" \
       -extensions v3_req
   done
 }
@@ -106,7 +108,7 @@ sign_server_requests() {
 validate_server_signed() {
   for i in $(seq 1 $SERVERS_COUNT); do
     WORK_DIR="${DIR_TLS}/server${i}"
-    openssl x509 -text -noout -in "${WORK_DIR}/server${i}.${DC}.consul.crt"
+    openssl x509 -text -noout -in "${WORK_DIR}/server.${DC}.consul.crt"
   done
 }
 
@@ -118,6 +120,15 @@ deploy_server_certs() {
     scp -r -o "ProxyCommand ssh ${BASTION_HOST} -W %h:%p" ${DIR_TLS}/consul-agent-ca.pem root@$SUBDOMAIN-$i.node.consul:/etc/consul.d/
   done
 }
+
+reload_servers() {
+  exec_hop_cmd="${1}"
+  for i in $(seq 1 $SERVERS_COUNT); do
+    ${exec_hop_cmd} ${SUBDOMAIN}-${i} "puppet agent -t"
+    ${exec_hop_cmd} ${SUBDOMAIN}-${i} "systemctl restart consul"
+  done
+}
+
 
 gen_client_request() {
   WORK_DIR="${DIR_TLS}/client"
@@ -195,7 +206,7 @@ deploy_certs() {
   fi
 }
 
-while getopts ":hdg:crsvpA" opt; do
+while getopts ":hdg:crsvpAR:" opt; do
   case $opt in
     d)
       set -x
@@ -224,6 +235,9 @@ while getopts ":hdg:crsvpA" opt; do
       gen_requests && \
         sign_requests && \
         deploy_certs
+      ;;
+    R)
+      reload_servers "${OPTARG}"
       ;;
     h)
       about
