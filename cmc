@@ -116,8 +116,8 @@ deploy_server_certs() {
   BASTION_HOST="${1}"
   for i in $(seq 1 $SERVERS_COUNT); do
     WORK_DIR="${DIR_TLS}/server${i}"
-    scp -r -o "ProxyCommand ssh ${BASTION_HOST} -W %h:%p" ${WORK_DIR}/*.{crt,key} root@$SUBDOMAIN-$i.node.consul:/etc/consul.d/
-    scp -r -o "ProxyCommand ssh ${BASTION_HOST} -W %h:%p" ${DIR_TLS}/consul-agent-ca.pem root@$SUBDOMAIN-$i.node.consul:/etc/consul.d/
+    scp -r -o "ProxyCommand ssh ${BASTION_HOST} -W %h:%p" ${WORK_DIR}/*.{crt,key} root@$SUBDOMAIN-$i.node.consul:/etc/consul.d/tls/
+    scp -r -o "ProxyCommand ssh ${BASTION_HOST} -W %h:%p" ${DIR_TLS}/consul-agent-ca.pem root@$SUBDOMAIN-$i.node.consul:/etc/consul.d/tls/
   done
 }
 
@@ -157,8 +157,8 @@ deploy_client_certs() {
   BASTION_HOST="${1}"
   CLIENT_NODE="${2}"
   WORK_DIR="${DIR_TLS}/client"
-  scp -r -o "ProxyCommand ssh ${BASTION_HOST} -W %h:%p" ${WORK_DIR}/*.{crt,key} root@$CLIENT_NODE.node.consul:/etc/consul.d/
-  scp -r -o "ProxyCommand ssh ${BASTION_HOST} -W %h:%p" ${DIR_TLS}/consul-agent-ca.pem root@$CLIENT_NODE.node.consul:/etc/consul.d/
+  scp -r -o "ProxyCommand ssh ${BASTION_HOST} -W %h:%p" ${WORK_DIR}/*.{crt,key} root@$CLIENT_NODE.node.consul:/etc/consul.d/tls/
+  scp -r -o "ProxyCommand ssh ${BASTION_HOST} -W %h:%p" ${DIR_TLS}/consul-agent-ca.pem root@$CLIENT_NODE.node.consul:/etc/consul.d/tls/
 }
 
 IS_CLIENT=false
