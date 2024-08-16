@@ -2,7 +2,7 @@
 
 about() {
       cat <<EOF
-Consul Managment CLI
+Consul Cert Managment CLI
   author: joe-at-startupmedia
 
   Available options:
@@ -20,16 +20,16 @@ Consul Managment CLI
   Examples:
 
     # generate the CA certs
-    ./cmc -dg ssh-staging-cmd startup-consul-1
+    ./ccm -dg ssh-staging-cmd startup-consul-1
 
     # generate sign and validate the client certs
-    ./cmc -cA
+    ./ccm -cA
 
     # deploy certs to servers
-    ./cmc -p
+    ./ccm -p
 
     # deploy client cert to a node
-    ./cm -cp client-node-name
+    ./ccm -cp client-node-name
 EOF
 
 }

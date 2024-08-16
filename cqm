@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+
+about() {
+      cat <<EOF
+Consul Query Managment CLI
+  author: joe-at-startupmedia
+
+  Available options:
+    -d: enable debugging
+    -h: print this help page
+    -a: [string: acl_token] specify the ACL token to use
+    -e: [string: query_id] explain a query
+    -x: [string: query_id] execute a query
+    -c: [string: query_file] create a qeury
+    -u: [string: query_file, string: query_id] update a query
+    -D: [string query_id] delete a query 
+EOF
+
+}
+
+set -e
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+DIR_QUERIES="${DIR}/queries"
+
+#attempt to include the .env file if it exists
+FILE="${DIR}/.env" && test -f $FILE && source $FILE
+
+explain() {
+  curl "${CURL_ARGS}" \
+    --header "X-Consul-Token: ${ACL_TOKEN}" \
+    http://127.0.0.1:8500/v1/query/$1/explain
+}
+
+execute() {
+  curl "${CURL_ARGS}" \
+    --header "X-Consul-Token: ${ACL_TOKEN}" \
+    http://127.0.0.1:8500/v1/query/$1/execute
+}
+
+create() {
+  curl "${CURL_ARGS}" \
+    --request POST \
+    --data @$1 \
+    --header "X-Consul-Token: ${ACL_TOKEN}" \
+    http://127.0.0.1:8500/v1/query
+}
+
+update() {
+  curl "${CURL_ARGS}" \
+    --request PUT \
+    --data @$1 \
+    --header "X-Consul-Token: ${ACL_TOKEN}" \
+    http://127.0.0.1:8500/v1/query/$2
+}
+
+delete() {
+  curl "${CURL_ARGS}" \
+    --request DELETE \
+    --header "X-Consul-Token: ${ACL_TOKEN}" \
+    http://127.0.0.1:8500/v1/query/$1
+}
+
+list() {
+  curl "${CURL_ARGS}" \
+    --header "X-Consul-Token: ${ACL_TOKEN}" \
+    http://127.0.0.1:8500/v1/query
+}
+
+CURL_ARGS="--silent"
+FORMAT_PIPE="jq"
+
+if [[ ${#} -eq 0 ]]; then
+  about
+fi
+
+while getopts ":hda:le:x:c:u:D:" opt; do
+  case $opt in
+    d)
+      CURL_ARGS="-i"
+      FORMAT_PIPE="cat"
+      set -x
+      ;;
+    a)
+      ACL_TOKEN=$OPTARG
+      ;;
+    l)
+      list | $FORMAT_PIPE
+      ;;
+    e)
+      QRY_ID=$OPTARG
+      explain "${QRY_ID}" | jq
+      ;;
+    x)
+      QRY_ID=$OPTARG
+      execute "${QRY_ID}" | jq
+      ;;
+    c)
+      QRY_FILE=$OPTARG
+      create "${QRY_FILE}"
+      ;;
+    u)
+      QRY_FILE=$OPTARG
+      QRY_ID=$2
+      update "${QRY_FILE}" "${QRY_ID}"
+      ;;
+    D)
+      QRY_ID=$OPTARG
+      delete "${QRY_ID}"
+      ;;
+    h)
+      about
+      ;;
+    ?)
+      echo "Invalid option: -$OPTARG" >&2
+      about
+      ;;
+  esac
+done
+
+
