@@ -89,11 +89,11 @@ while getopts ":hda:le:x:c:u:D:" opt; do
       ;;
     e)
       QRY_ID=$OPTARG
-      explain "${QRY_ID}" | jq
+      explain "${QRY_ID}" | $FORMAT_PIPE
       ;;
     x)
       QRY_ID=$OPTARG
-      execute "${QRY_ID}" | jq
+      execute "${QRY_ID}" | $FORMAT_PIPE
       ;;
     c)
       QRY_FILE=$OPTARG
