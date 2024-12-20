@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+# See the following consul documentation:
+#   https://developer.hashicorp.com/consul/docs/dynamic-app-config/sessions/application-leader-election#acquire-the-lock
+#   https://developer.hashicorp.com/consul/api-docs/session
+
 about() {
       cat <<EOF
 Consul Leader Election CLI
