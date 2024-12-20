@@ -14,6 +14,7 @@ Consul Leader Election CLI
     -v: toggle verbosity
     -h: print this help page
     -k: pass a specific leader election key
+    -e: get leader election key/value
     -t: pass the acl token
     -g: get the current session id
     -i: get the session info
@@ -55,6 +56,13 @@ require_deps "${deps[@]}"
 CONSUL_HOST=${CONSUL_HOST:-"http://localhost:8500"}
 
 SESSION_ID=""
+
+get_election_kv() {
+  curl \
+    --header "X-Consul-Token: ${ACL_TOKEN}" \
+    -sX GET "${CONSUL_HOST}/v1/kv/${ELECTION_KEY}"| cap
+  ret | pipe_to_jq_if_json
+}
 
 get_session() {
   curl \
@@ -171,7 +179,7 @@ match_leader() {
   get_leader "${SESSION_ID}" | grep -o $(hostname)
 }
 
-while getopts ":hdk:t:giI:lmn:LCD:aA:wrv" opt; do
+while getopts ":hdk:et:giI:lmn:LCD:aA:wrv" opt; do
   case $opt in
     d)
       set -x
@@ -184,6 +192,9 @@ while getopts ":hdk:t:giI:lmn:LCD:aA:wrv" opt; do
       ;;
     v)
       VERBOSE=true
+      ;;
+    e)
+      get_election_kv
       ;;
     g)
       if [ -z "${ELECTION_KEY}" ]; then
