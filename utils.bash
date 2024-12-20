@@ -2,7 +2,7 @@ VERBOSE=false
 CAPTURE_FILE="/tmp/capture.out"
 
 fn_verbose() {
-  if [ "${DEBUG}" == "true" ]; then
+  if [ "${VERBOSE}" == "true" ]; then
     echo "${1}"
   fi
 }
