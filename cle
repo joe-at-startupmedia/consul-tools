@@ -11,6 +11,7 @@ Consul Leader Election CLI
 
   Available options:
     -d: enable debugging
+    -v: toggle verbosity
     -h: print this help page
     -k: pass a specific leader election key
     -t: pass the acl token
@@ -28,11 +29,17 @@ Consul Leader Election CLI
     -C: create a new session
   Usage:
     $ cle -L 
-        list sessions
+        ## list sessions
     $ cle -gi
-        gets the current session info
+        ## gets the current session info
     $ cli -I xxxxxxx-xxxxxxx-xxxxxxx 
-        get the session by its ID
+        ## get the session by its ID
+    $ cli -C
+        ## create a new session
+    $ cli -ga
+        ## acquire a lock from the current session
+    $ cli -gm
+        ## check if the current node is the leader
 EOF
 
 }
@@ -69,11 +76,11 @@ acquire_lock() {
   RESULT=$(ret)
 
   if [ "${RESULT}" == "true" ]; then
-    echo "Acquired Lock" && exit 0
+    fn_verbose "Acquired Lock" && exit 0
   elif [ "${RESULT}" == "false"  ]; then
-    echo "Did Not Acquire Lock"
+    fn_verbose "Did Not Acquire Lock"
   else
-    echo "${RESULT}"
+    fn_verbose "${RESULT}"
   fi
   
   exit 1
@@ -87,13 +94,13 @@ watch_lock() {
   MODIFY_INDEX=$(ret)
 
   if [ -z "${MODIFY_INDEX}" ]; then
-    echo "could not obtain ModifyIndex"
+    fn_verbose "could not obtain ModifyIndex"
     exit 1
   else 
-    echo "obtained ModifyIndex: ${MODIFY_INDEX}"
+    fn_verbose "obtained ModifyIndex: ${MODIFY_INDEX}"
   fi
 
-  echo "watching lock..."
+  fn_verbose "watching lock..."
   #this will block until key is modified
   curl \
     --header "X-Consul-Token: $CONSUL_HTTP_TOKEN" \
@@ -141,7 +148,7 @@ match_leader() {
   get_leader "${SESSION_ID}" | grep -o $(hostname)
 }
 
-while getopts ":hdk:t:giI:lmn:LCD:aA:w" opt; do
+while getopts ":hdk:t:giI:lmn:LCD:aA:wv" opt; do
   case $opt in
     d)
       set -x
@@ -152,13 +159,16 @@ while getopts ":hdk:t:giI:lmn:LCD:aA:w" opt; do
     t)
       ACL_TOKEN="${OPTARG}"
       ;;
+    v)
+      VERBOSE=true
+      ;;
     g)
       if [ -z "${ELECTION_KEY}" ]; then
-        echo "ELECTION_KEY environment variable is required."
+        fn_verbose "ELECTION_KEY environment variable is required."
         exit 1
       fi
       SESSION_ID=$(get_session)
-      echo "session_id grabbed by election key: $SESSION_ID"
+       fn_verbose "session_id grabbed by election key: $SESSION_ID"
       ;;
     i)
       get_session_info "${SESSION_ID}"

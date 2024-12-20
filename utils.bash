@@ -1,3 +1,11 @@
+VERBOSE=false
+
+fn_verbose() {
+  if [ "${DEBUG}" == "true" ]; then
+    echo "${1}"
+  fi
+}
+
 # capture the output of a command so it can be retrieved with ret
 cap () { cat > /tmp/capture.out; }
 
