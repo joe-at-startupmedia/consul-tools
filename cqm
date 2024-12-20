@@ -25,17 +25,18 @@ DIR_QUERIES="${DIR}/queries"
 
 #attempt to include the .env file if it exists
 FILE="${DIR}/.env" && test -f $FILE && source $FILE
+CONSUL_HOST=${CONSUL_HOST:-"http://localhost:8500"}
 
 explain() {
   curl "${CURL_ARGS}" \
     --header "X-Consul-Token: ${ACL_TOKEN}" \
-    http://127.0.0.1:8500/v1/query/$1/explain
+    "${CONSUL_HOST}/v1/query/$1/explain"
 }
 
 execute() {
   curl "${CURL_ARGS}" \
     --header "X-Consul-Token: ${ACL_TOKEN}" \
-    http://127.0.0.1:8500/v1/query/$1/execute
+    "${CONSUL_HOST}/v1/query/$1/execute"
 }
 
 create() {
@@ -43,7 +44,7 @@ create() {
     --request POST \
     --data @$1 \
     --header "X-Consul-Token: ${ACL_TOKEN}" \
-    http://127.0.0.1:8500/v1/query
+    "${CONSUL_HOST}/v1/query"
 }
 
 update() {
@@ -51,20 +52,20 @@ update() {
     --request PUT \
     --data @$1 \
     --header "X-Consul-Token: ${ACL_TOKEN}" \
-    http://127.0.0.1:8500/v1/query/$2
+    "${CONSUL_HOST}/v1/query/$2"
 }
 
 delete() {
   curl "${CURL_ARGS}" \
     --request DELETE \
     --header "X-Consul-Token: ${ACL_TOKEN}" \
-    http://127.0.0.1:8500/v1/query/$1
+    "${CONSUL_HOST}/v1/query/$1"
 }
 
 list() {
   curl "${CURL_ARGS}" \
     --header "X-Consul-Token: ${ACL_TOKEN}" \
-    http://127.0.0.1:8500/v1/query
+    "${CONSUL_HOST}/v1/query"
 }
 
 CURL_ARGS="--silent"
@@ -117,5 +118,3 @@ while getopts ":hda:le:x:c:u:D:" opt; do
       ;;
   esac
 done
-
-
