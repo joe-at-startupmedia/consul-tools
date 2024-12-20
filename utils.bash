@@ -1,4 +1,5 @@
 VERBOSE=false
+CAPTURE_FILE="/tmp/capture.out"
 
 fn_verbose() {
   if [ "${DEBUG}" == "true" ]; then
@@ -7,12 +8,17 @@ fn_verbose() {
 }
 
 # capture the output of a command so it can be retrieved with ret
-cap () { cat > /tmp/capture.out; }
+cap () {
+  if [ ! -f "${CAPTURE_FILE}" ]; then
+    chmod 0666 "${CAPTURE_FILE}"
+  fi
+  cat > "${CAPTURE_FILE}"; 
+}
 
 # return the output of the most recent command that was captured by cap
 ret () { 
- cat /tmp/capture.out;
- truncate -s 0 /tmp/capture.out;
+ cat "${CAPTURE_FILE}";
+ truncate -s 0 "${CAPTURE_FILE}";
 }
 
 pipe_to_jq_if_json() {
