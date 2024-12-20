@@ -10,6 +10,7 @@ fn_verbose() {
 # capture the output of a command so it can be retrieved with ret
 cap () {
   if [ ! -f "${CAPTURE_FILE}" ]; then
+    touch "${CAPTURE_FILE}"
     chmod 0666 "${CAPTURE_FILE}"
   fi
   cat > "${CAPTURE_FILE}"; 
