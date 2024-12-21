@@ -58,7 +58,6 @@ require_deps "${deps[@]}"
 
 CONSUL_HOST=${CONSUL_HOST:-"http://localhost:8500"}
 
-SESSION_ID=""
 HOSTNAME=${HOSTNAME:-`hostname`}
 
 get_election_kv() {
@@ -73,26 +72,14 @@ get_election_kv() {
 }
 
 get_session() {
-  
-  curl \
-    --header "X-Consul-Token: ${ACL_TOKEN}" \
-    -sX GET "${CONSUL_HOST}/v1/kv/${ELECTION_KEY}"| jq  -r ".[].Session" | cap
-  
+  capture_node_sessions "${HOSTNAME}"
   RESULT=$(ret)
-
-  if [ -z "${RESULT}" ] || [ "${RESULT}" == "null" ]; then
-    fn_verbose "session was not found from locks k/v store. checking session list by hostname instead."
-    capture_node_sessions "${HOSTNAME}"
-    RESULT=$(ret)
-    RESULT_EMTPTY=$(echo "${RESULT}" | jq -e '. | length == 0')
-    if [ -z "${RESULT}" ] || [ "${RESULT_EMTPTY}" == "true" ]; then
-      fn_verbose "session was not found from session list"
-      exit 1
-    else
-      SESSION_ID=$(echo "${RESULT}" | jq  -r ".[].ID")
-    fi
+  RESULT_EMTPTY=$(echo "${RESULT}" | jq -e '. | length == 0')
+  if [ -z "${RESULT}" ] || [ "${RESULT_EMTPTY}" == "true" ]; then
+    fn_verbose "session was not found from session list"
+    exit 1
   else
-    SESSION_ID="${RESULT}"
+    SESSION_ID=$(echo "${RESULT}" | jq  -r ".[].ID")
   fi
 }
 
@@ -224,13 +211,16 @@ require_election_key() {
   fi
 }
 
-while getopts ":hxk:et:giI:lmnN:LCdD:aA:wrR:v" opt; do
+while getopts ":hxk:s:t:vegilmnN:Lcdawr" opt; do
   case $opt in
     x)
       set -x
       ;;
     k)
       ELECTION_KEY="${OPTARG}"
+      ;;
+    s)
+      SESSION_ID="${OPTARG}"
       ;;
     t)
       ACL_TOKEN="${OPTARG}"
@@ -243,13 +233,9 @@ while getopts ":hxk:et:giI:lmnN:LCdD:aA:wrR:v" opt; do
       ;;
     g)
       get_session
-      fn_verbose "session_id grabbed by election key: $SESSION_ID"
+      fn_verbose "session_id found from hostname: $SESSION_ID"
       ;;
     i)
-      get_session_info "${SESSION_ID}"
-      ;;
-    I)
-      SESSION_ID=${OPTARG}
       get_session_info "${SESSION_ID}"
       ;;
     l)
@@ -267,31 +253,19 @@ while getopts ":hxk:et:giI:lmnN:LCdD:aA:wrR:v" opt; do
     L)
       list_sessions
       ;;
-    C)
+    c)
       create_session
       ;;
     d)
       delete_session "${SESSION_ID}"
       ;;
-    D)
-      SESSION_ID=${OPTARG}
-      delete_session "${SESSION_ID}"
-      ;;
     a)
-      acquire_lock "${SESSION_ID}"
-      ;;
-    A)
-      SESSION_ID=${OPTARG}
       acquire_lock "${SESSION_ID}"
       ;;
     w)
       watch_lock
       ;;
     r)
-      release_lock "${SESSION_ID}"
-      ;;
-    R)
-      SESSION_ID=${OPTARG}
       release_lock "${SESSION_ID}"
       ;;
     h)

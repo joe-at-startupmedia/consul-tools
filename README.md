@@ -66,7 +66,7 @@ You can also check a list of all the sessions (not only those assigned to the cu
 This should output a session id
 
 ```
-./cle -vC
+./cle -vc
 ```
 
 example output:
@@ -126,7 +126,7 @@ Example output:
 The following will do everything in one shot.
 
 ```
-./cle -vCgae
+./cle -vcgae
 ```
 
 Example output:
