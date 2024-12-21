@@ -9,8 +9,8 @@ about() {
 Consul Leader Election CLI
   author: joe-at-startupmedia
 
-  Available options:
-    -d: enable debugging
+  Available Flags:
+    -x: enable debugging
     -v: toggle verbosity
     -h: print this help page
     -k: pass a specific leader election key
@@ -20,6 +20,7 @@ Consul Leader Election CLI
     -i: get the session info
     -I: get the session info by passing the session id
     -L: list sessions
+    -d: delete the current session
     -D: delete a session by passing the session id
     -a: Acquire a lock from the current session id using the hostname
     -A: Acquire a lock by passing a session id using the hostname
@@ -27,9 +28,11 @@ Consul Leader Election CLI
     -r: Release a lock from the current session id using the hostname
     -R: Release a lock by passing a session id using the hostname
     -n: get sessions by the node id
+    -N: get sessions by passing the node id
     -l: get the current leader
     -m: match the current leader against the hostname
-    -C: create a new session
+    -C: create a new session if one doesn't already exist
+
   Usage:
     $ cle -L 
         ## list sessions
@@ -56,6 +59,7 @@ require_deps "${deps[@]}"
 CONSUL_HOST=${CONSUL_HOST:-"http://localhost:8500"}
 
 SESSION_ID=""
+HOSTNAME=${HOSTNAME:-`hostname`}
 
 get_election_kv() {
   curl \
@@ -67,33 +71,52 @@ get_election_kv() {
 get_session() {
   curl \
     --header "X-Consul-Token: ${ACL_TOKEN}" \
-    -sX GET "${CONSUL_HOST}/v1/kv/${ELECTION_KEY}"| jq  -r ".[].Session"
+    -sX GET "${CONSUL_HOST}/v1/kv/${ELECTION_KEY}"| jq  -r ".[].Session" | cap
+  
+  RESULT=$(ret)
+
+  if [ -z "${RESULT}" ] || [ "${RESULT}" == "null" ]; then
+    fn_verbose "session was not found from locks k/v store. checking session list by hostname instead."
+    capture_node_sessions "${HOSTNAME}"
+    RESULT=$(ret)
+    RESULT_EMTPTY=$(echo "${RESULT}" | jq -e '. | length == 0')
+    if [ -z "${RESULT}" ] || [ "${RESULT_EMTPTY}" == "true" ]; then
+      fn_verbose "session was not found from session list"
+      exit 1
+    else
+      SESSION_ID=$(echo "${RESULT}" | jq  -r ".[].ID")
+    fi
+  else
+    SESSION_ID="${RESULT}"
+  fi
 }
 
 create_session() {
-  curl \
-    --header "X-Consul-Token: ${ACL_TOKEN}" \
-    -X PUT "${CONSUL_HOST}/v1/session/create"
+  capture_node_sessions "${HOSTNAME}"
+  RESULT=$(ret)
+  RESULT_EMTPTY=$(echo "${RESULT}" | jq -e '. | length == 0')
+  if [ -z "${RESULT}" ] || [ "${RESULT_EMTPTY}" == "true" ]; then
+    curl \
+      --header "X-Consul-Token: ${ACL_TOKEN}" \
+      -sX PUT "${CONSUL_HOST}/v1/session/create" | cap
+
+    ret | pipe_to_jq_if_json
+  else
+    fn_verbose "session already exists for the current node"
+    exit 1
+  fi
 }
 
 acquire_lock() {
   SESSION_ID="${1}"
   curl \
     --header "X-Consul-Token: $CONSUL_HTTP_TOKEN" \
-    --data '{"Node": "'`hostname`'"}' \
+    --data '{"Node": "'${HOSTNAME}'"}' \
     -sX PUT "${CONSUL_HOST}/v1/kv/${ELECTION_KEY}?acquire=${SESSION_ID}" | cap
 
   RESULT=$(ret)
 
-  if [ "${RESULT}" == "true" ]; then
-    fn_verbose "Acquired Lock" && exit 0
-  elif [ "${RESULT}" == "false"  ]; then
-    fn_verbose "Did Not Acquire Lock"
-  else
-    fn_verbose "${RESULT}"
-  fi
-  
-  exit 1
+  exit_from_bool "${RESULT}" "Acquired Lock" "Did Not Acquire Lock"
 }
 
 watch_lock() {
@@ -115,6 +138,7 @@ watch_lock() {
   curl \
     --header "X-Consul-Token: $CONSUL_HTTP_TOKEN" \
     -sX GET "${CONSUL_HOST}/v1/kv/${ELECTION_KEY}?index=${MODIFY_INDEX}" | cap
+
   ret | pipe_to_jq_if_json
 }
 
@@ -122,35 +146,34 @@ release_lock() {
   SESSION_ID="${1}"
   curl \
     --header "X-Consul-Token: $CONSUL_HTTP_TOKEN" \
-    --data '{"Node": "'`hostname`'"}' \
+    --data '{"Node": "'${HOSTNAME}'"}' \
     -sX PUT "${CONSUL_HOST}/v1/kv/${ELECTION_KEY}?release=${SESSION_ID}" | cap
 
   RESULT=$(ret)
 
-  if [ "${RESULT}" == "true" ]; then
-    fn_verbose "Release Lock" && exit 0
-  elif [ "${RESULT}" == "false"  ]; then
-    fn_verbose "Could Not Release Lock"
-  else
-    fn_verbose "${RESULT}"
-  fi
-
-  exit 1
+  exit_from_bool "${RESULT}" "Released Lock" "Could Not Release Lock"
 }
-
 
 delete_session() {
   SESSION_ID="${1}"
   curl \
     --header "X-Consul-Token: ${ACL_TOKEN}" \
-    -X PUT "${CONSUL_HOST}/v1/session/destroy/${SESSION_ID}"
+    -sX PUT "${CONSUL_HOST}/v1/session/destroy/${SESSION_ID}" | cap
+
+  RESULT=$(ret)
+  
+  exit_from_bool "${RESULT}" "Deleted Session" "Could not delete session"
 }
 
-get_node_sessions() {
+capture_node_sessions() {
   NODE_ID=${1}
   curl \
     --header "X-Consul-Token: ${ACL_TOKEN}" \
     -sX GET "${CONSUL_HOST}/v1/session/node/${NODE_ID}" | cap
+}
+
+get_node_sessions() {
+  capture_node_sessions "${1}"
   ret | pipe_to_jq_if_json
 }
 
@@ -176,12 +199,12 @@ get_leader() {
 
 match_leader() {
   SESSION_ID="${1}"
-  get_leader "${SESSION_ID}" | grep -o $(hostname)
+  get_leader "${SESSION_ID}" | grep -o "${HOSTNAME}"
 }
 
-while getopts ":hdk:et:giI:lmn:LCD:aA:wrv" opt; do
+while getopts ":hxk:et:giI:lmnN:LCdD:aA:wrv" opt; do
   case $opt in
-    d)
+    x)
       set -x
       ;;
     k)
@@ -201,8 +224,8 @@ while getopts ":hdk:et:giI:lmn:LCD:aA:wrv" opt; do
         fn_verbose "ELECTION_KEY environment variable is required."
         exit 1
       fi
-      SESSION_ID=$(get_session)
-       fn_verbose "session_id grabbed by election key: $SESSION_ID"
+      get_session
+      fn_verbose "session_id grabbed by election key: $SESSION_ID"
       ;;
     i)
       get_session_info "${SESSION_ID}"
@@ -220,6 +243,9 @@ while getopts ":hdk:et:giI:lmn:LCD:aA:wrv" opt; do
       get_leader "${SESSION_ID}"
       ;;
     n)
+      get_node_sessions "${HOSTNAME}"
+      ;;
+    N)
       get_node_sessions "${OPTARG}"
       ;;
     m)
@@ -230,6 +256,9 @@ while getopts ":hdk:et:giI:lmn:LCD:aA:wrv" opt; do
       ;;
     C)
       create_session
+      ;;
+    d)
+      delete_session "${SESSION_ID}"
       ;;
     D)
       if [ -z "${SESSION_ID}" ]; then

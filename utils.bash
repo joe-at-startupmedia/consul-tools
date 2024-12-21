@@ -52,3 +52,19 @@ require_deps() {
     about
   fi
 }
+
+exit_from_bool() {
+  BOOL="${1}"
+  MSG_TRUE="${2}"
+  MSG_FALSE="${3}"
+
+  if [ "${BOOL}" == "true" ]; then
+    fn_verbose "${MSG_TRUE}" && exit 0
+  elif [ "${BOOL}" == "false"  ]; then
+    fn_verbose "${MSG_FALSE}"
+  else
+    fn_verbose "${BOOL}"
+  fi
+
+  exit 1
+}
