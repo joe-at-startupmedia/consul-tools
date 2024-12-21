@@ -59,7 +59,8 @@ exit_from_bool() {
   MSG_FALSE="${3}"
 
   if [ "${BOOL}" == "true" ]; then
-    fn_verbose "${MSG_TRUE}" && exit 0
+    fn_verbose "${MSG_TRUE}"
+    return 0
   elif [ "${BOOL}" == "false"  ]; then
     fn_verbose "${MSG_FALSE}"
   else

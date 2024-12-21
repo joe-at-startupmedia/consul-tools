@@ -120,3 +120,33 @@ Example output:
   }
 ]
 ```
+
+### Create And Display Session/Lock All-in-one
+
+The following will do everything in one shot.
+
+```
+./cle -vCgae
+```
+
+Example output:
+
+```
+{
+  "ID": "3dxxxxa0-0xx9-7xxd-exx9-9a3xxxx397b1"
+}
+session was not found from locks k/v store. checking session list by hostname instead.
+session_id grabbed by election key: 3dxxxxa0-0xx9-7xxd-exx9-9a3xxxx397b1
+Acquired Lock
+[
+  {
+    "LockIndex": 4,
+    "Key": "service/dw-leader-election",
+    "Flags": 0,
+    "Value": "eyJOb2RlIjogInN0YXJ0dXAtZGF0YXdhcmVob3VzZS0xIn0=",
+    "Session": "3dxxxxa0-0xx9-7xxd-exx9-9a3xxxx397b1",
+    "CreateIndex": 66075687,
+    "ModifyIndex": 66321903
+  }
+]
+```

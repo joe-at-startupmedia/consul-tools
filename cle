@@ -202,7 +202,7 @@ match_leader() {
   get_leader "${SESSION_ID}" | grep -o "${HOSTNAME}"
 }
 
-while getopts ":hxk:et:giI:lmnN:LCdD:aA:wrv" opt; do
+while getopts ":hxk:et:giI:lmnN:LCdD:aA:wrR:v" opt; do
   case $opt in
     x)
       set -x
@@ -231,15 +231,10 @@ while getopts ":hxk:et:giI:lmnN:LCdD:aA:wrv" opt; do
       get_session_info "${SESSION_ID}"
       ;;
     I)
-      if [ -z "${SESSION_ID}" ]; then
-        SESSION_ID=${OPTARG}
-      fi
+      SESSION_ID=${OPTARG}
       get_session_info "${SESSION_ID}"
       ;;
     l)
-      if [ -z "${SESSION_ID}" ]; then
-        SESSION_ID=${OPTARG}
-      fi
       get_leader "${SESSION_ID}"
       ;;
     n)
@@ -261,18 +256,14 @@ while getopts ":hxk:et:giI:lmnN:LCdD:aA:wrv" opt; do
       delete_session "${SESSION_ID}"
       ;;
     D)
-      if [ -z "${SESSION_ID}" ]; then
-        SESSION_ID=${OPTARG}
-      fi
+      SESSION_ID=${OPTARG}
       delete_session "${SESSION_ID}"
       ;;
     a)
       acquire_lock "${SESSION_ID}"
       ;;
     A)
-      if [ -z "${SESSION_ID}" ]; then
-        SESSION_ID=${OPTARG}
-      fi
+      SESSION_ID=${OPTARG}
       acquire_lock "${SESSION_ID}"
       ;;
     w)
@@ -282,9 +273,7 @@ while getopts ":hxk:et:giI:lmnN:LCdD:aA:wrv" opt; do
       release_lock "${SESSION_ID}"
       ;;
     R)
-      if [ -z "${SESSION_ID}" ]; then
-        SESSION_ID=${OPTARG}
-      fi
+      SESSION_ID=${OPTARG}
       release_lock "${SESSION_ID}"
       ;;
     h)
