@@ -1,5 +1,5 @@
 VERBOSE=${VERBOSE:-false}
-CAPTURE_FILE="/tmp/capture.out"
+CAPTURE_FILE=${CAPTURE_FILE:-"/tmp/capture.out"}
 
 fn_verbose() {
   if [ "${VERBOSE}" == "true" ]; then
