@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 source "$DIR/cle"
@@ -14,6 +14,12 @@ while true; do
     fi
   fi
 
-  renew_session "${SESSION_ID}"
-  acquire_lock "${SESSION_ID}"
+  capture_renew_session "${SESSION_ID}"
+  RENEW_RESULT=$(ret | jq -r '.[0].ID')
+  if [ -z "${RENEW_RESULT}" ]; then
+    fn_verbose "session renewal encountered an error. creating new session"
+    unset SESSION_ID
+  else
+    acquire_lock "${SESSION_ID}"
+  fi
 done
