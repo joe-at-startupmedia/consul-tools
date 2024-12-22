@@ -10,7 +10,7 @@ while true; do
     get_session
     if [ -z "${SESSION_ID}" ]; then
       create_session
-      get_session
+      continue
     fi
   fi
 
