@@ -60,14 +60,16 @@ CONSUL_HOST=${CONSUL_HOST:-"http://localhost:8500"}
 
 HOSTNAME=${HOSTNAME:-`hostname`}
 
-get_election_kv() {
-  
+capture_election_kv() {
   require_election_key
   
   curl \
     --header "X-Consul-Token: ${ACL_TOKEN}" \
     -sX GET "${CONSUL_HOST}/v1/kv/${ELECTION_KEY}"| cap
-  
+}
+
+get_election_kv() {
+  capture_election_kv  
   ret | pipe_to_jq_if_json
 }
 
@@ -115,12 +117,10 @@ acquire_lock() {
 }
 
 watch_lock() {
-  
-  require_election_key
-  
-  curl \
-    --header "X-Consul-Token: ${ACL_TOKEN}" \
-    -sX GET "${CONSUL_HOST}/v1/kv/${ELECTION_KEY}"| jq  -r ".[].ModifyIndex" | cap
+ 
+  capture_election_kv 
+ 
+  ret | jq  -r ".[].ModifyIndex" | cap
 
   MODIFY_INDEX=$(ret)
 
@@ -179,10 +179,14 @@ get_node_sessions() {
   ret | pipe_to_jq_if_json
 }
 
-list_sessions() {
-  curl \
+capture_sessions() {
+   curl \
     --header "X-Consul-Token: ${ACL_TOKEN}" \
     -sX GET "${CONSUL_HOST}/v1/session/list" | cap
+}
+
+list_sessions() {
+  capture_sessions
   ret | pipe_to_jq_if_json
 }
 
@@ -195,13 +199,14 @@ get_session_info() {
 }
 
 get_leader() {
-  SESSION_ID="${1}"
-  get_session_info "${SESSION_ID}" | jq -r ".[].Node"
+  capture_election_kv
+  LOCK_SESSION_ID=$(ret | jq -r ".[].Session")
+  capture_sessions
+  ret | jq -r ".[] | select(.ID==\"${LOCK_SESSION_ID}\") | .Node"
 }
 
 match_leader() {
-  SESSION_ID="${1}"
-  get_leader "${SESSION_ID}" | grep -o "${HOSTNAME}"
+  get_leader | grep -o "${HOSTNAME}"
 }
 
 require_election_key() {
