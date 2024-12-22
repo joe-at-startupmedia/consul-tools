@@ -18,20 +18,17 @@ Consul Leader Election CLI
     -t: pass the acl token
     -g: get the current session id
     -i: get the session info
-    -I: get the session info by passing the session id
     -L: list sessions
     -d: delete the current session
-    -D: delete a session by passing the session id
     -a: Acquire a lock from the current session id using the hostname
-    -A: Acquire a lock by passing a session id using the hostname
     -w: Watch the session lock
     -r: Release a lock from the current session id using the hostname
-    -R: Release a lock by passing a session id using the hostname
     -n: get sessions by the node id
     -N: get sessions by passing the node id
     -l: get the current leader
     -m: match the current leader against the hostname
-    -C: create a new session if one doesn't already exist
+    -c: create a new session if one doesn't already exist
+    -R: renew a session
 
   Usage:
     $ cle -L 
@@ -92,13 +89,23 @@ create_session() {
   if [ -z "${RESULT}" ] || [ "${RESULT_EMTPTY}" == "true" ]; then
     curl \
       --header "X-Consul-Token: ${ACL_TOKEN}" \
+      --data '{"TTL": "15s"}' \
       -sX PUT "${CONSUL_HOST}/v1/session/create" | cap
 
     ret | pipe_to_jq_if_json
   else
     fn_verbose "session already exists for the current node"
-    exit 1
   fi
+}
+
+renew_session() {
+  SESSION_ID="${1}"
+
+  curl \
+    --header "X-Consul-Token: ${ACL_TOKEN}" \
+    -sX PUT "${CONSUL_HOST}/v1/session/renew/${SESSION_ID}" | cap
+    
+  ret | pipe_to_jq_if_json
 }
 
 acquire_lock() {
@@ -216,7 +223,7 @@ require_election_key() {
   fi
 }
 
-while getopts ":hxk:s:t:vegilmnN:Lcdawr" opt; do
+while getopts ":hxk:s:t:vegilmnN:LcRdawr" opt; do
   case $opt in
     x)
       set -x
@@ -260,6 +267,9 @@ while getopts ":hxk:s:t:vegilmnN:Lcdawr" opt; do
       ;;
     c)
       create_session
+      ;;
+    R)
+      renew_session "${SESSION_ID}"
       ;;
     d)
       delete_session "${SESSION_ID}"
