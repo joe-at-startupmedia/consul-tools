@@ -3,7 +3,12 @@ CAPTURE_FILE=${CAPTURE_FILE:-"/tmp/capture.out"}
 
 fn_verbose() {
   if [ "${VERBOSE}" == "true" ]; then
-    echo "${1}"
+    if [ -z $OMIT_TIMESTAMPS ]; then
+      timestamp=$(date +"%Y-%m-%d %H:%M:%S")
+      echo "[${timestamp}] ${1}"
+    else
+      echo "${1}"
+    fi
   fi
 }
 
