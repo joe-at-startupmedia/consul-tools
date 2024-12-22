@@ -3,16 +3,17 @@
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 source "$DIR/cle"
 
-VERBOSE=true
-
-create_session
-
-get_session
-
-acquire_lock "${SESSION_ID}"
-
 while true; do
   sleep 5
+  
+  if [ -z "${SESSION_ID}" ]; then
+    get_session
+    if [ -z "${SESSION_ID}" ]; then
+      create_session
+      get_session
+    fi
+  fi
+
   renew_session "${SESSION_ID}"
   acquire_lock "${SESSION_ID}"
 done

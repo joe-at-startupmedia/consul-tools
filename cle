@@ -76,7 +76,7 @@ get_session() {
   RESULT_EMTPTY=$(echo "${RESULT}" | jq -e '. | length == 0')
   if [ -z "${RESULT}" ] || [ "${RESULT_EMTPTY}" == "true" ]; then
     fn_verbose "session was not found from session list"
-    exit 1
+    return 1
   else
     SESSION_ID=$(echo "${RESULT}" | jq  -r ".[].ID")
   fi
@@ -95,6 +95,7 @@ create_session() {
     ret | pipe_to_jq_if_json
   else
     fn_verbose "session already exists for the current node"
+    return 1
   fi
 }
 
@@ -120,7 +121,7 @@ acquire_lock() {
 
   RESULT=$(ret)
 
-  exit_from_bool "${RESULT}" "Acquired Lock" "Did Not Acquire Lock"
+  handle_from_bool "${RESULT}" "Acquired Lock" "Did Not Acquire Lock"
 }
 
 watch_lock() {
@@ -133,7 +134,7 @@ watch_lock() {
 
   if [ -z "${MODIFY_INDEX}" ]; then
     fn_verbose "could not obtain ModifyIndex"
-    exit 1
+    return 1
   else 
     fn_verbose "obtained ModifyIndex: ${MODIFY_INDEX}"
   fi
@@ -160,7 +161,7 @@ release_lock() {
 
   RESULT=$(ret)
 
-  exit_from_bool "${RESULT}" "Released Lock" "Could Not Release Lock"
+  handle_from_bool "${RESULT}" "Released Lock" "Could Not Release Lock"
 }
 
 delete_session() {
@@ -171,7 +172,7 @@ delete_session() {
 
   RESULT=$(ret)
   
-  exit_from_bool "${RESULT}" "Deleted Session" "Could not delete session"
+  handle_from_bool "${RESULT}" "Deleted Session" "Could not delete session"
 }
 
 capture_node_sessions() {
@@ -245,6 +246,7 @@ while getopts ":hxk:s:t:vegilmnN:LcRdawr" opt; do
       ;;
     g)
       get_session
+      exit_from_status $?
       fn_verbose "session_id found from hostname: $SESSION_ID"
       ;;
     i)
@@ -267,6 +269,7 @@ while getopts ":hxk:s:t:vegilmnN:LcRdawr" opt; do
       ;;
     c)
       create_session
+      exit_from_status $?
       ;;
     R)
       renew_session "${SESSION_ID}"

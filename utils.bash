@@ -1,4 +1,4 @@
-VERBOSE=false
+VERBOSE=${VERBOSE:-false}
 CAPTURE_FILE="/tmp/capture.out"
 
 fn_verbose() {
@@ -53,7 +53,7 @@ require_deps() {
   fi
 }
 
-exit_from_bool() {
+handle_from_bool() {
   BOOL="${1}"
   MSG_TRUE="${2}"
   MSG_FALSE="${3}"
@@ -67,5 +67,12 @@ exit_from_bool() {
     fn_verbose "${BOOL}"
   fi
 
-  exit 1
+  return 1
+}
+
+exit_from_status() {
+  SC="${1}"
+  if [ $SC -eq 1 ]; then
+    exit 1
+  fi
 }
