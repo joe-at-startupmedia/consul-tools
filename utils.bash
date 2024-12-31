@@ -42,7 +42,7 @@ pipe_to_jq_if_json() {
 }
 
 include_env() {
-  DIR="${1}"
+  local DIR="${1}"
   FILE="${DIR}/.env" && test -f $FILE && source $FILE
 }
 
